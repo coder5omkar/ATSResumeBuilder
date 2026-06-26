@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATS Resume Builder v3</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --primary: #1a2a3a; --primary-light: #2c3e50;
+  --accent: #4a90d9; --accent-light: #e8f0fa;
+  --bg: #eef1f5; --card: #fff; --border: #dce1e8;
+  --text: #1a1a1a; --text-secondary: #5a6872;
+}
+
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); }
+
+.app-container { display: flex; height: 100vh; overflow: hidden; }
+
+/* ===== TOOLBAR ===== */
+.toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 24px; background: var(--card); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
+}
+.toolbar h1 { font-size: 18px; font-weight: 700; color: var(--primary); }
+.toolbar h1 span { font-size: 12px; font-weight: 400; color: var(--text-secondary); margin-left: 6px; }
+.toolbar-actions { display: flex; gap: 8px; align-items: center; }
+.btn {
+  padding: 7px 18px; border: none; border-radius: 5px; font-size: 13px;
+  font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: #0f1f2f; }
+.btn-outline { background: transparent; border: 2px solid var(--accent); color: var(--accent); }
+.btn-outline:hover { background: var(--accent); color: #fff; }
+.btn-success { background: #0d7c3f; color: #fff; }
+.btn-success:hover { background: #0a5e30; }
+
+/* ===== SIDEBAR EDITOR ===== */
+.sidebar {
+  width: 360px; min-width: 360px; background: var(--card); border-right: 1px solid var(--border);
+  overflow-y: auto; height: calc(100vh - 53px);
+}
+.sidebar::-webkit-scrollbar { width: 5px; }
+.sidebar::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+.editor-form { padding: 18px; }
+.form-section { margin-bottom: 18px; }
+.form-section-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--primary); margin-bottom: 10px; padding-bottom: 4px;
+  border-bottom: 1.5px solid var(--border); display: flex; justify-content: space-between; align-items: center;
+}
+.form-group { margin-bottom: 9px; }
+.form-group label { display: block; font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 3px; }
+.form-group input, .form-group textarea, .form-group select {
+  width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 5px;
+  font-size: 13px; font-family: inherit; transition: border-color 0.2s; background: #fff;
+}
+.form-group input:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(74,144,217,0.1); }
+.form-group textarea { resize: vertical; min-height: 50px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.photo-upload { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.photo-upload img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid var(--border); }
+.photo-placeholder {
+  width: 64px; height: 64px; border-radius: 50%; border: 3px dashed var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary); font-size: 10px; text-align: center; cursor: pointer; transition: all 0.2s;
+}
+.photo-placeholder:hover { border-color: var(--accent); color: var(--accent); }
+
+.entry-card {
+  background: #f7f8fa; border: 1px solid var(--border); border-radius: 6px;
+  padding: 12px; margin-bottom: 9px; position: relative;
+}
+.entry-remove { background: none; border: none; color: #d93025; cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1; position: absolute; top: 6px; right: 6px; }
+.entry-remove:hover { color: #a50e0e; }
+.bullet-list { margin-top: 5px; }
+.bullet-row { display: flex; gap: 4px; margin-bottom: 3px; }
+.bullet-row input { flex: 1; }
+.bullet-remove { background: none; border: none; color: #d93025; cursor: pointer; font-size: 14px; padding: 0; }
+.btn-add { background: none; border: 1px dashed var(--border); border-radius: 5px; padding: 5px 10px; font-size: 12px; color: var(--accent); cursor: pointer; width: 100%; }
+.btn-add:hover { border-color: var(--accent); background: rgba(74,144,217,0.05); }
+.btn-add-bullet { background: none; border: none; color: var(--accent); font-size: 11px; cursor: pointer; padding: 2px 0; }
+.btn-add-bullet:hover { text-decoration: underline; }
+
+/* ===== PREVIEW PANEL ===== */
+.preview-panel {
+  flex: 1; overflow-y: auto; background: #dde1e7;
+  display: flex; flex-direction: column; align-items: center; padding: 20px;
+}
+.preview-paper {
+  width: 210mm; min-height: 297mm; background: #fff;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.13); position: relative;
+  font-family: 'Calibri', 'Segoe UI', 'Arial', 'Helvetica', sans-serif;
+  overflow: hidden;
+}
+
+/* ===== TWO-COLUMN RESUME ===== */
+.ats-resume {
+  display: grid;
+  grid-template-columns: 34% 66%;
+  min-height: 297mm;
+  color: #222;
+}
+
+/* --- SIDEBAR (left column) --- */
+.ats-resume .rs-sidebar {
+  background: var(--primary);
+  color: rgba(255,255,255,0.9);
+  padding: 32px 22px 28px 22px;
+  display: flex; flex-direction: column; gap: 0;
+  font-size: 9pt;
+  line-height: 1.4;
+}
+
+.ats-resume .rs-sidebar .rs-name {
+  font-size: 16pt; font-weight: 700; color: #fff; margin-bottom: 2px; line-height: 1.2;
+}
+.ats-resume .rs-sidebar .rs-title {
+  font-size: 9.5pt; color: var(--accent); font-weight: 600; margin-bottom: 14px; letter-spacing: 0.5px;
+}
+
+.ats-resume .rs-sidebar .rs-photo {
+  width: 90px; height: 90px; border-radius: 50%; object-fit: cover;
+  border: 3px solid rgba(255,255,255,0.25); margin-bottom: 14px;
+}
+
+.ats-side-section { margin-bottom: 16px; }
+.ats-side-section h3 {
+  font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px;
+  color: rgba(255,255,255,0.5); margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.12);
+  padding-bottom: 4px;
+}
+
+.ats-side-section .contact-item {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 8.5pt;
+  word-break: break-word;
+}
+.ats-side-section .contact-item .ci-icon { color: var(--accent); width: 14px; text-align: center; flex-shrink: 0; font-size: 9pt; }
+
+.ats-side-section .skill-row {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;
+}
+.ats-side-section .skill-row .sk-name { font-size: 8.5pt; }
+.ats-side-section .skill-row .sk-bar {
+  width: 55px; height: 5px; background: rgba(255,255,255,0.15); border-radius: 3px; overflow: hidden; flex-shrink: 0;
+}
+.ats-side-section .skill-row .sk-bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+
+.ats-side-section .edu-item { margin-bottom: 7px; }
+.ats-side-section .edu-item .ei-degree { font-size: 9pt; font-weight: 600; color: #fff; }
+.ats-side-section .edu-item .ei-school { font-size: 8pt; color: rgba(255,255,255,0.7); }
+.ats-side-section .edu-item .ei-meta { font-size: 7.5pt; color: rgba(255,255,255,0.5); }
+
+.ats-side-section .cert-item { margin-bottom: 5px; }
+.ats-side-section .cert-item .cert-name { font-size: 8.5pt; color: #fff; }
+.ats-side-section .cert-item .cert-issuer { font-size: 8pt; color: rgba(255,255,255,0.6); }
+
+.ats-side-section .lang-row { font-size: 8.5pt; margin-bottom: 3px; }
+.ats-side-section .lang-row .lang-name { font-weight: 600; }
+
+/* --- Main (right column) --- */
+.ats-resume .rs-main {
+  padding: 32px 28px 28px 22px;
+  font-size: 9.5pt;
+  line-height: 1.45;
+}
+.ats-resume .rs-main .rs-summary {
+  font-size: 9pt; line-height: 1.5; color: #444; margin-bottom: 16px;
+}
+.rs-main-section { margin-bottom: 14px; }
+.rs-main-section h3 {
+  font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--primary); margin-bottom: 6px; padding-bottom: 3px;
+  border-bottom: 2px solid var(--accent);
+}
+.rs-main-section .exp-item { margin-bottom: 10px; }
+.rs-main-section .exp-item .exp-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.rs-main-section .exp-item .exp-head .exp-title { font-size: 10pt; font-weight: 700; color: var(--primary); }
+.rs-main-section .exp-item .exp-head .exp-date { font-size: 8.5pt; color: #888; white-space: nowrap; }
+.rs-main-section .exp-item .exp-sub { font-size: 8.5pt; color: #666; margin-bottom: 2px; }
+.rs-main-section .exp-item .exp-sub .exp-co { color: var(--accent); font-weight: 600; }
+.rs-main-section .exp-item ul { margin: 2px 0 0 15px; padding: 0; list-style: none; }
+.rs-main-section .exp-item li {
+  font-size: 9pt; line-height: 1.45; margin-bottom: 2px; padding-left: 4px; position: relative;
+}
+.rs-main-section .exp-item li:before { content: '\2022'; color: var(--accent); font-weight: 700; position: absolute; left: -14px; }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 900px) {
+  .app-container { flex-direction: column; height: auto; }
+  .sidebar { width: 100%; min-width: auto; height: auto; border-right: none; border-bottom: 1px solid var(--border); max-height: 45vh; }
+  .preview-panel { padding: 12px; }
+  .preview-paper { width: 100%; min-height: auto; }
+  .ats-resume { grid-template-columns: 1fr; }
+}
+@media print {
+  .sidebar, .toolbar { display: none; }
+  .preview-panel { padding: 0; background: #fff; }
+  .preview-paper { box-shadow: none; width: 100%; }
+}
+
+.loading-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  z-index: 1000; justify-content: center; align-items: center;
+}
+.loading-overlay.active { display: flex; }
+.loading-spinner { background: #fff; padding: 28px 36px; border-radius: 10px; text-align: center; }
+.spinner { width: 36px; height: 36px; border: 4px solid #e0e0e0; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.toast { position: fixed; bottom: 30px; right: 30px; background: #0d7c3f; color: #fff; padding: 10px 22px; border-radius: 6px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2); opacity: 0; transition: opacity 0.3s; z-index: 2000; pointer-events: none; }
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"><div class="spinner"></div><div>Generating PDF...</div></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<div class="toolbar">
+  <h1>&#9997; ATS Resume Builder <span>v3 &mdash; Two-Column</span></h1>
+  <div class="toolbar-actions">
+    <button class="btn btn-outline" onclick="downloadHTML()">&#11015; HTML</button>
+    <button class="btn btn-success" onclick="downloadPDF()">&#128196; PDF</button>
+  </div>
+</div>
+
+<div class="app-container">
+
+  <!-- EDITOR -->
+  <div class="sidebar">
+    <form class="editor-form" id="resumeForm" autocomplete="off">
+
+      <div class="form-section">
+        <div class="form-section-title">Personal Info</div>
+        <div class="photo-upload">
+          <img id="photoPreview" src="" alt="Photo" style="display:none">
+          <div class="photo-placeholder" id="photoPlaceholder" onclick="document.getElementById('photoInput').click()">Click<br>to add</div>
+          <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handlePhotoUpload(event)">
+          <button type="button" class="btn btn-outline" style="padding:3px 8px;font-size:10px" onclick="removePhoto()">Remove</button>
+        </div>
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="fullName" value="James Anderson" oninput="renderPreview()">
+        </div>
+        <div class="form-group">
+          <label>Professional Title</label>
+          <input type="text" id="title" value="Senior Project Manager  |  PMP" oninput="renderPreview()">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="email" value="james.anderson@email.com" oninput="renderPreview()">
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="tel" id="phone" value="+1 (206) 555-0192" oninput="renderPreview()">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Location</label>
+            <input type="text" id="location" value="Seattle, WA" oninput="renderPreview()">
+          </div>
+          <div class="form-group">
+            <label>LinkedIn</label>
+            <input type="text" id="linkedin" value="linkedin.com/in/jamesanderson" oninput="renderPreview()">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Portfolio</label>
+          <input type="text" id="website" value="jamesanderson.dev" oninput="renderPreview()">
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">Summary</div>
+        <div class="form-group">
+          <textarea id="summary" rows="3" oninput="renderPreview()" placeholder="Write a concise professional summary...">Accomplished Senior Project Manager with 10+ years of experience leading cross-functional teams to deliver complex enterprise projects on time and under budget. PMP and CSM certified with a proven track record of driving process improvements that increased delivery efficiency by 35% across Fortune 500 organizations.</textarea>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">
+          <span>Skills</span>
+          <button type="button" class="btn-add" style="width:auto;padding:3px 10px" onclick="addSkill()">+ Add</button>
+        </div>
+        <div id="skillsContainer"></div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">
+          <span>Experience</span>
+          <button type="button" class="btn-add" style="width:auto;padding:3px 10px" onclick="addExperience()">+ Add</button>
+        </div>
+        <div id="experienceContainer"></div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">
+          <span>Education</span>
+          <button type="button" class="btn-add" style="width:auto;padding:3px 10px" onclick="addEducation()">+ Add</button>
+        </div>
+        <div id="educationContainer"></div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">
+          <span>Projects</span>
+          <button type="button" class="btn-add" style="width:auto;padding:3px 10px" onclick="addProject()">+ Add</button>
+        </div>
+        <div id="projectsContainer"></div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">
+          <span>Certifications</span>
+          <button type="button" class="btn-add" style="width:auto;padding:3px 10px" onclick="addCertification()">+ Add</button>
+        </div>
+        <div id="certificationsContainer"></div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">
+          <span>Languages</span>
+          <button type="button" class="btn-add" style="width:auto;padding:3px 10px" onclick="addLanguage()">+ Add</button>
+        </div>
+        <div id="languagesContainer"></div>
+      </div>
+
+      <div style="height:40px"></div>
+    </form>
+  </div>
+
+  <!-- PREVIEW -->
+  <div class="preview-panel">
+    <div class="preview-paper" id="resumePreview"></div>
+  </div>
+
+</div>
+
+<script>
+let resumeData = { skills: [], experiences: [], education: [], projects: [], certifications: [], languages: [] };
+let photoDataURL = null;
+
+const PROF_WEIGHT = { Expert: 1, Advanced: 0.8, Intermediate: 0.55, Beginner: 0.3 };
+const PROF_ORDER = ['Expert', 'Advanced', 'Intermediate', 'Beginner'];
+const LANG_ORDER = ['Native', 'Fluent', 'Advanced', 'Intermediate', 'Basic'];
+
+function init() {
+  addSkill('Project Management', 'Expert');
+  addSkill('Agile / Scrum', 'Expert');
+  addSkill('Risk Management', 'Expert');
+  addSkill('Stakeholder Mgmt', 'Advanced');
+  addSkill('Budgeting & Forecasting', 'Advanced');
+  addSkill('JIRA / Confluence', 'Advanced');
+  addSkill('MS Project', 'Advanced');
+  addSkill('Team Leadership', 'Expert');
+
+  addExperience('Senior Project Manager', 'Microsoft Corporation', 'Redmond, WA', '2021 - Present', [
+    'Led a $12M cloud infrastructure modernization program across 6 cross-functional teams, delivering 4 months ahead of schedule',
+    'Implemented Agile-at-scale framework reducing project delivery cycle time by 35% and increasing stakeholder satisfaction by 42%',
+    'Managed portfolio of 15+ concurrent projects with combined budget of $45M, maintaining 98% on-time delivery rate'
+  ]);
+  addExperience('Project Manager', 'Deloitte Consulting', 'Seattle, WA', '2018 - 2021', [
+    'Directed digital transformation for 3 Fortune 500 clients, each with budgets exceeding $8M and teams of 20+ members',
+    'Designed and implemented a standardized project governance framework adopted across the Pacific Northwest practice',
+    'Mentored 5 associate project managers, achieving 100% promotion rate within 18 months'
+  ]);
+  addExperience('Associate Project Manager', 'Accenture', 'San Francisco, CA', '2015 - 2018', [
+    'Coordinated 12+ enterprise software implementations using Waterfall and hybrid methodologies',
+    'Developed risk mitigation strategies that reduced project overruns by 28% across the portfolio'
+  ]);
+
+  addEducation('Master of Business Administration (MBA)', 'Harvard Business School', 'Boston, MA', '2013 - 2015', 'GPA: 3.85/4.0');
+  addEducation('B.S. in Industrial Engineering', 'University of Washington', 'Seattle, WA', '2009 - 2013', 'GPA: 3.9/4.0, Magna Cum Laude');
+
+  addProject('Enterprise Risk Dashboard', 'Power BI, SQL, Azure', '2023', [
+    'Built a real-time risk analytics dashboard used by C-suite to track 200+ project risks across the organization',
+    'Reduced risk response time by 60% through automated escalation triggers and reporting'
+  ]);
+
+  addCertification('Project Management Professional (PMP)', 'PMI', '2020');
+  addCertification('Certified ScrumMaster (CSM)', 'Scrum Alliance', '2019');
+  addCertification('SAFe 5 Agilist', 'Scaled Agile', '2022');
+
+  addLanguage('English', 'Native');
+  addLanguage('Mandarin Chinese', 'Intermediate');
+
+  renderPreview();
+}
+
+function escHtml(s) { if(!s)return ''; return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ===== SKILLS =====
+function addSkill(name, level) {
+  const idx = resumeData.skills.length;
+  resumeData.skills.push({ name: name||'', level: level||'Advanced' });
+  const c = document.getElementById('skillsContainer');
+  const d = document.createElement('div'); d.className='entry-card';
+  d.innerHTML = `
+    <div class="form-row">
+      <div class="form-group"><label>Skill</label><input type="text" value="${escHtml(name||'')}" oninput="resumeData.skills[${idx}].name=this.value;renderPreview()"></div>
+      <div class="form-group"><label>Level</label><select onchange="resumeData.skills[${idx}].level=this.value;renderPreview()">${PROF_ORDER.map(p=>`<option value="${p}" ${level===p?'selected':''}>${p}</option>`).join('')}</select></div>
+    </div>
+    <button type="button" class="entry-remove" onclick="removeSkill(${idx})">&times;</button>`;
+  c.appendChild(d);
+}
+function removeSkill(idx) { resumeData.skills.splice(idx,1); rebuild('skillsContainer','Skill'); renderPreview(); }
+
+// ===== EXPERIENCE =====
+function addExperience(title, company, location, dates, bullets) {
+  const idx = resumeData.experiences.length;
+  const b = bullets||[''];
+  resumeData.experiences.push({title:title||'',company:company||'',location:location||'',dates:dates||'',bullets:[...b]});
+  rebuildExp();
+  renderPreview();
+}
+function rebuildExp() {
+  const c = document.getElementById('experienceContainer'); c.innerHTML = '';
+  resumeData.experiences.forEach((e,i) => {
+    const d = document.createElement('div'); d.className='entry-card';
+    let h = `<div style="margin-bottom:4px"><div class="form-row"><div class="form-group"><label>Title</label><input type="text" value="${escHtml(e.title)}" oninput="resumeData.experiences[${i}].title=this.value;renderPreview()"></div><div class="form-group"><label>Company</label><input type="text" value="${escHtml(e.company)}" oninput="resumeData.experiences[${i}].company=this.value;renderPreview()"></div></div><div class="form-row"><div class="form-group"><label>Location</label><input type="text" value="${escHtml(e.location)}" oninput="resumeData.experiences[${i}].location=this.value;renderPreview()"></div><div class="form-group"><label>Dates</label><input type="text" value="${escHtml(e.dates)}" oninput="resumeData.experiences[${i}].dates=this.value;renderPreview()"></div></div></div>`;
+    h += `<div class="bullet-list">`;
+    e.bullets.forEach((bt,bi) => {
+      h += `<div class="bullet-row"><input type="text" value="${escHtml(bt)}" oninput="resumeData.experiences[${i}].bullets[${bi}]=this.value;renderPreview()" placeholder="Achievement"><button type="button" class="bullet-remove" onclick="removeExpBullet(${i},${bi})">&times;</button></div>`;
+    });
+    h += `</div><button type="button" class="btn-add-bullet" onclick="addExpBullet(${i})">+ Bullet</button><button type="button" class="entry-remove" onclick="removeExperience(${i})">&times;</button>`;
+    d.innerHTML = h; c.appendChild(d);
+  });
+}
+function addExpBullet(idx) { resumeData.experiences[idx].bullets.push(''); rebuildExp(); renderPreview(); }
+function removeExpBullet(idx, bi) { resumeData.experiences[idx].bullets.splice(bi,1); rebuildExp(); renderPreview(); }
+function removeExperience(idx) { resumeData.experiences.splice(idx,1); rebuildExp(); renderPreview(); }
+
+// ===== EDUCATION =====
+function addEducation(degree, institution, location, dates, details) {
+  const idx = resumeData.education.length;
+  resumeData.education.push({degree:degree||'',institution:institution||'',location:location||'',dates:dates||'',details:details||''});
+  const c = document.getElementById('educationContainer');
+  const d = document.createElement('div'); d.className='entry-card';
+  d.innerHTML = `
+    <div class="form-row"><div class="form-group"><label>Degree</label><input type="text" value="${escHtml(degree||'')}" oninput="resumeData.education[${idx}].degree=this.value;renderPreview()"></div><div class="form-group"><label>Institution</label><input type="text" value="${escHtml(institution||'')}" oninput="resumeData.education[${idx}].institution=this.value;renderPreview()"></div></div>
+    <div class="form-row"><div class="form-group"><label>Location</label><input type="text" value="${escHtml(location||'')}" oninput="resumeData.education[${idx}].location=this.value;renderPreview()"></div><div class="form-group"><label>Dates</label><input type="text" value="${escHtml(dates||'')}" oninput="resumeData.education[${idx}].dates=this.value;renderPreview()"></div></div>
+    <div class="form-group"><label>Details</label><input type="text" value="${escHtml(details||'')}" oninput="resumeData.education[${idx}].details=this.value;renderPreview()"></div>
+    <button type="button" class="entry-remove" onclick="removeEducation(${idx})">&times;</button>`;
+  c.appendChild(d);
+}
+function removeEducation(idx) { resumeData.education.splice(idx,1); rebuild('educationContainer','Education'); renderPreview(); }
+
+// ===== PROJECTS =====
+function addProject(name, tech, dates, bullets) {
+  const idx = resumeData.projects.length;
+  const b = bullets||[''];
+  resumeData.projects.push({name:name||'',tech:tech||'',dates:dates||'',bullets:[...b]});
+  const c = document.getElementById('projectsContainer');
+  const d = document.createElement('div'); d.className='entry-card';
+  let h = `<div class="form-row"><div class="form-group"><label>Project</label><input type="text" value="${escHtml(name||'')}" oninput="resumeData.projects[${idx}].name=this.value;renderPreview()"></div><div class="form-group"><label>Tech</label><input type="text" value="${escHtml(tech||'')}" oninput="resumeData.projects[${idx}].tech=this.value;renderPreview()"></div></div>
+    <div class="form-group"><label>Dates</label><input type="text" value="${escHtml(dates||'')}" oninput="resumeData.projects[${idx}].dates=this.value;renderPreview()"></div>
+    <div class="bullet-list">`;
+  b.forEach((bt,bi) => {
+    h += `<div class="bullet-row"><input type="text" value="${escHtml(bt)}" oninput="resumeData.projects[${idx}].bullets[${bi}]=this.value;renderPreview()" placeholder="Description"><button type="button" class="bullet-remove" onclick="removeProjBullet(${idx},${bi})">&times;</button></div>`;
+  });
+  h += `</div><button type="button" class="btn-add-bullet" onclick="addProjBullet(${idx})">+ Bullet</button><button type="button" class="entry-remove" onclick="removeProject(${idx})">&times;</button>`;
+  d.innerHTML = h; c.appendChild(d);
+}
+function addProjBullet(idx) { resumeData.projects[idx].bullets.push(''); rebuild('projectsContainer','Project'); renderPreview(); }
+function removeProjBullet(idx, bi) { resumeData.projects[idx].bullets.splice(bi,1); rebuild('projectsContainer','Project'); renderPreview(); }
+function removeProject(idx) { resumeData.projects.splice(idx,1); rebuild('projectsContainer','Project'); renderPreview(); }
+
+// ===== CERTIFICATIONS =====
+function addCertification(name, issuer, date) {
+  const idx = resumeData.certifications.length;
+  resumeData.certifications.push({name:name||'',issuer:issuer||'',date:date||''});
+  const c = document.getElementById('certificationsContainer');
+  const d = document.createElement('div'); d.className='entry-card';
+  d.innerHTML = `
+    <div class="form-row"><div class="form-group"><label>Certification</label><input type="text" value="${escHtml(name||'')}" oninput="resumeData.certifications[${idx}].name=this.value;renderPreview()"></div><div class="form-group"><label>Issuer</label><input type="text" value="${escHtml(issuer||'')}" oninput="resumeData.certifications[${idx}].issuer=this.value;renderPreview()"></div></div>
+    <div class="form-group"><label>Date</label><input type="text" value="${escHtml(date||'')}" oninput="resumeData.certifications[${idx}].date=this.value;renderPreview()"></div>
+    <button type="button" class="entry-remove" onclick="removeCertification(${idx})">&times;</button>`;
+  c.appendChild(d);
+}
+function removeCertification(idx) { resumeData.certifications.splice(idx,1); rebuild('certificationsContainer','Certification'); renderPreview(); }
+
+// ===== LANGUAGES =====
+function addLanguage(name, proficiency) {
+  const idx = resumeData.languages.length;
+  resumeData.languages.push({name:name||'',proficiency:proficiency||'Advanced'});
+  const c = document.getElementById('languagesContainer');
+  const d = document.createElement('div'); d.className='entry-card';
+  d.innerHTML = `
+    <div class="form-row"><div class="form-group"><label>Language</label><input type="text" value="${escHtml(name||'')}" oninput="resumeData.languages[${idx}].name=this.value;renderPreview()"></div><div class="form-group"><label>Proficiency</label>
+      <select onchange="resumeData.languages[${idx}].proficiency=this.value;renderPreview()">${LANG_ORDER.map(p=>`<option value="${p}" ${proficiency===p?'selected':''}>${p}</option>`).join('')}</select></div>
+    </div><button type="button" class="entry-remove" onclick="removeLanguage(${idx})">&times;</button>`;
+  c.appendChild(d);
+}
+function removeLanguage(idx) { resumeData.languages.splice(idx,1); rebuild('languagesContainer','Language'); renderPreview(); }
+
+function rebuild(id, type) {
+  const c = document.getElementById(id); c.innerHTML = '';
+  const arr = resumeData[
+    type==='Skill'?'skills':
+    type==='Experience'?'experiences':
+    type==='Education'?'education':
+    type==='Project'?'projects':
+    type==='Certification'?'certifications':'languages'
+  ];
+  arr.forEach(item => {
+    if(type==='Skill') addSkill(item.name, item.level);
+    else if(type==='Experience') addExperience(item.title, item.company, item.location, item.dates, item.bullets);
+    else if(type==='Education') addEducation(item.degree, item.institution, item.location, item.dates, item.details);
+    else if(type==='Project') addProject(item.name, item.tech, item.dates, item.bullets);
+    else if(type==='Certification') addCertification(item.name, item.issuer, item.date);
+    else addLanguage(item.name, item.proficiency);
+  });
+}
+
+function handlePhotoUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = function(ev) {
+    photoDataURL = ev.target.result;
+    document.getElementById('photoPreview').src = photoDataURL;
+    document.getElementById('photoPreview').style.display = 'block';
+    document.getElementById('photoPlaceholder').style.display = 'none';
+    renderPreview();
+  };
+  r.readAsDataURL(file);
+}
+function removePhoto() {
+  photoDataURL = null;
+  document.getElementById('photoPreview').style.display = 'none';
+  document.getElementById('photoPlaceholder').style.display = 'flex';
+  document.getElementById('photoInput').value = '';
+  renderPreview();
+}
+
+// ===== RENDER =====
+function renderPreview() {
+  const d = {
+    name: document.getElementById('fullName').value || 'Your Name',
+    title: document.getElementById('title').value || '',
+    email: document.getElementById('email').value || '',
+    phone: document.getElementById('phone').value || '',
+    location: document.getElementById('location').value || '',
+    linkedin: document.getElementById('linkedin').value || '',
+    website: document.getElementById('website').value || '',
+    summary: document.getElementById('summary').value || '',
+    skills: resumeData.skills,
+    experiences: resumeData.experiences,
+    education: resumeData.education,
+    projects: resumeData.projects,
+    certifications: resumeData.certifications,
+    languages: resumeData.languages
+  };
+
+  let html = `<div class="ats-resume">`;
+
+  // === SIDEBAR ===
+  html += `<div class="rs-sidebar">`;
+
+  if (photoDataURL) {
+    html += `<img class="rs-photo" src="${photoDataURL}" alt="">`;
+  }
+
+  html += `<div class="rs-name">${escHtml(d.name)}</div>`;
+  html += `<div class="rs-title">${escHtml(d.title)}</div>`;
+
+  // Contact
+  html += `<div class="ats-side-section"><h3>Contact</h3>`;
+  if (d.email) html += `<div class="contact-item"><span class="ci-icon">&#9993;</span>${escHtml(d.email)}</div>`;
+  if (d.phone) html += `<div class="contact-item"><span class="ci-icon">&#9742;</span>${escHtml(d.phone)}</div>`;
+  if (d.location) html += `<div class="contact-item"><span class="ci-icon">&#9906;</span>${escHtml(d.location)}</div>`;
+  if (d.linkedin) html += `<div class="contact-item"><span class="ci-icon">&#9654;</span>${escHtml(d.linkedin)}</div>`;
+  if (d.website) html += `<div class="contact-item"><span class="ci-icon">&#127760;</span>${escHtml(d.website)}</div>`;
+  html += `</div>`;
+
+  // Skills
+  if (d.skills.length) {
+    html += `<div class="ats-side-section"><h3>Skills</h3>`;
+    d.skills.forEach(s => {
+      const w = PROF_WEIGHT[s.level] || 0.5;
+      html += `<div class="skill-row"><span class="sk-name">${escHtml(s.name)}</span><span class="sk-bar"><span class="sk-bar-fill" style="width:${w*100}%"></span></span></div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Education
+  if (d.education.length) {
+    html += `<div class="ats-side-section"><h3>Education</h3>`;
+    d.education.forEach(edu => {
+      html += `<div class="edu-item">`;
+      html += `<div class="ei-degree">${escHtml(edu.degree)}</div>`;
+      html += `<div class="ei-school">${escHtml(edu.institution)}${edu.location ? ', ' + escHtml(edu.location) : ''}</div>`;
+      html += `<div class="ei-meta">${escHtml(edu.dates)}${edu.details ? ' &middot; ' + escHtml(edu.details) : ''}</div>`;
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Certifications
+  if (d.certifications.length) {
+    html += `<div class="ats-side-section"><h3>Certifications</h3>`;
+    d.certifications.forEach(cert => {
+      html += `<div class="cert-item"><div class="cert-name">${escHtml(cert.name)}</div>`;
+      if (cert.issuer) html += `<div class="cert-issuer">${escHtml(cert.issuer)}${cert.date ? ' &middot; ' + escHtml(cert.date) : ''}</div>`;
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Languages
+  if (d.languages.length) {
+    html += `<div class="ats-side-section"><h3>Languages</h3>`;
+    d.languages.forEach(l => {
+      html += `<div class="lang-row"><span class="lang-name">${escHtml(l.name)}</span> &mdash; ${escHtml(l.proficiency)}</div>`;
+    });
+    html += `</div>`;
+  }
+
+  html += `</div>`; // end sidebar
+
+  // === MAIN ===
+  html += `<div class="rs-main">`;
+
+  if (d.summary) {
+    html += `<div class="rs-summary">${escHtml(d.summary)}</div>`;
+  }
+
+  // Experience
+  if (d.experiences.length) {
+    html += `<div class="rs-main-section"><h3>Experience</h3>`;
+    d.experiences.forEach(exp => {
+      html += `<div class="exp-item">`;
+      html += `<div class="exp-head"><span class="exp-title">${escHtml(exp.title)}</span><span class="exp-date">${escHtml(exp.dates)}</span></div>`;
+      html += `<div class="exp-sub"><span class="exp-co">${escHtml(exp.company)}</span>${exp.location ? ' &mdash; ' + escHtml(exp.location) : ''}</div>`;
+      const bullets = (exp.bullets||[]).filter(b=>b.trim());
+      if (bullets.length) {
+        html += `<ul>`;
+        bullets.forEach(b => { html += `<li>${escHtml(b)}</li>`; });
+        html += `</ul>`;
+      }
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Projects
+  if (d.projects.length) {
+    html += `<div class="rs-main-section"><h3>Projects</h3>`;
+    d.projects.forEach(proj => {
+      html += `<div class="exp-item">`;
+      html += `<div class="exp-head"><span class="exp-title">${escHtml(proj.name)}</span><span class="exp-date">${escHtml(proj.dates)}</span></div>`;
+      if (proj.tech) html += `<div class="exp-sub"><em>${escHtml(proj.tech)}</em></div>`;
+      const bullets = (proj.bullets||[]).filter(b=>b.trim());
+      if (bullets.length) {
+        html += `<ul>`;
+        bullets.forEach(b => { html += `<li>${escHtml(b)}</li>`; });
+        html += `</ul>`;
+      }
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+
+  html += `</div>`; // end main
+  html += `</div>`; // end ats-resume
+
+  document.getElementById('resumePreview').innerHTML = html;
+}
+
+// ===== DOWNLOAD HTML =====
+function downloadHTML() {
+  const content = document.getElementById('resumePreview').innerHTML;
+  const name = document.getElementById('fullName').value || 'Untitled';
+  const css = `*{margin:0;padding:0;box-sizing:border-box}
+body{display:flex;justify-content:center;padding:40px 20px;background:#f5f5f5;font-family:'Calibri','Segoe UI','Arial','Helvetica',sans-serif}
+.resume-page{width:210mm;min-height:297mm;background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.1);overflow:hidden}
+.ats-resume{display:grid;grid-template-columns:34% 66%;min-height:297mm;color:#222}
+.ats-resume .rs-sidebar{background:#1a2a3a;color:rgba(255,255,255,0.9);padding:32px 22px 28px 22px;font-size:9pt;line-height:1.4}
+.ats-resume .rs-sidebar .rs-name{font-size:16pt;font-weight:700;color:#fff;margin-bottom:2px;line-height:1.2}
+.ats-resume .rs-sidebar .rs-title{font-size:9.5pt;color:#4a90d9;font-weight:600;margin-bottom:14px;letter-spacing:0.5px}
+.ats-resume .rs-sidebar .rs-photo{width:90px;height:90px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,0.25);margin-bottom:14px}
+.ats-side-section{margin-bottom:16px}
+.ats-side-section h3{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.5);margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.12);padding-bottom:4px}
+.ats-side-section .contact-item{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:8.5pt;word-break:break-word}
+.ats-side-section .contact-item .ci-icon{color:#4a90d9;width:14px;text-align:center;flex-shrink:0;font-size:9pt}
+.ats-side-section .skill-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.ats-side-section .skill-row .sk-name{font-size:8.5pt}
+.ats-side-section .skill-row .sk-bar{width:55px;height:5px;background:rgba(255,255,255,0.15);border-radius:3px;overflow:hidden;flex-shrink:0}
+.ats-side-section .skill-row .sk-bar-fill{display:block;height:100%;background:#4a90d9;border-radius:3px}
+.ats-side-section .edu-item{margin-bottom:7px}
+.ats-side-section .edu-item .ei-degree{font-size:9pt;font-weight:600;color:#fff}
+.ats-side-section .edu-item .ei-school{font-size:8pt;color:rgba(255,255,255,0.7)}
+.ats-side-section .edu-item .ei-meta{font-size:7.5pt;color:rgba(255,255,255,0.5)}
+.ats-side-section .cert-item{margin-bottom:5px}
+.ats-side-section .cert-item .cert-name{font-size:8.5pt;color:#fff}
+.ats-side-section .cert-item .cert-issuer{font-size:8pt;color:rgba(255,255,255,0.6)}
+.ats-side-section .lang-row{font-size:8.5pt;margin-bottom:3px}
+.ats-side-section .lang-row .lang-name{font-weight:600}
+.ats-resume .rs-main{padding:32px 28px 28px 22px;font-size:9.5pt;line-height:1.45}
+.ats-resume .rs-main .rs-summary{font-size:9pt;line-height:1.5;color:#444;margin-bottom:16px}
+.rs-main-section{margin-bottom:14px}
+.rs-main-section h3{font-size:10pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#1a2a3a;margin-bottom:6px;padding-bottom:3px;border-bottom:2px solid #4a90d9}
+.rs-main-section .exp-item{margin-bottom:10px}
+.rs-main-section .exp-item .exp-head{display:flex;justify-content:space-between;align-items:baseline}
+.rs-main-section .exp-item .exp-head .exp-title{font-size:10pt;font-weight:700;color:#1a2a3a}
+.rs-main-section .exp-item .exp-head .exp-date{font-size:8.5pt;color:#888;white-space:nowrap}
+.rs-main-section .exp-item .exp-sub{font-size:8.5pt;color:#666;margin-bottom:2px}
+.rs-main-section .exp-item .exp-sub .exp-co{color:#4a90d9;font-weight:600}
+.rs-main-section .exp-item ul{margin:2px 0 0 15px;padding:0;list-style:none}
+.rs-main-section .exp-item li{font-size:9pt;line-height:1.45;margin-bottom:2px;padding-left:4px;position:relative}
+.rs-main-section .exp-item li:before{content:'\\2022';color:#4a90d9;font-weight:700;position:absolute;left:-14px}
+@media print{body{padding:0;background:#fff}.resume-page{box-shadow:none;padding:0}}
+`;
+  const full = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Resume - ${escHtml(name)}</title><style>${css}</style></head><body><div class="resume-page">${content}</div></body></html>`;
+  const blob = new Blob([full], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `Resume_${name.replace(/\s+/g,'_')}.html`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  showToast('HTML downloaded!');
+}
+
+function downloadPDF() {
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.classList.add('active');
+  const el = document.getElementById('resumePreview');
+  html2pdf().set({
+    margin: [0.4, 0.35, 0.4, 0.35],
+    filename: `Resume_${(document.getElementById('fullName').value||'Untitled').replace(/\s+/g,'_')}.pdf`,
+    image: {type:'jpeg',quality:0.98},
+    html2canvas: {scale:2,useCORS:true,allowTaint:true,letterRendering:true},
+    jsPDF: {unit:'in',format:'letter',orientation:'portrait'},
+    pagebreak: {mode:['avoid-all','css','legacy']}
+  }).from(el).save().then(() => {
+    overlay.classList.remove('active'); showToast('PDF downloaded!');
+  }).catch(e => { overlay.classList.remove('active'); console.error(e); alert('PDF error.'); });
+}
+
+function showToast(m) { const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
